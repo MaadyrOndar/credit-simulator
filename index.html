@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Гибкий Кредитный Симулятор с Авто-пробелами</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 20px; background: #eceff1; color: #37474f; }
+        .wrapper { max-width: 1150px; margin: 0 auto; display: grid; grid-template-columns: 360px 1fr; gap: 20px; }
+        .panel { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); height: fit-content; }
+        .main-content { display: flex; flex-direction: column; gap: 20px; }
+        h2, h3 { margin-top: 0; color: #2c3e50; border-bottom: 2px solid #f0f2f5; padding-bottom: 8px; }
+        .form-group { margin-bottom: 12px; position: relative; }
+        label { display: block; margin-bottom: 4px; font-weight: 600; font-size: 13px; color: #546e7a; }
+        input, select { width: 100%; padding: 8px 12px; border: 1px solid #cfd8dc; border-radius: 6px; box-sizing: border-box; font-size: 14px; }
+        input:focus, select:focus { border-color: #00897b; outline: none; }
+        
+        .help-btn { background: #b0bec5; color: white; border: none; border-radius: 50%; width: 18px; height: 18px; font-size: 11px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin-left: 5px; font-weight: bold; vertical-align: middle; }
+        .help-btn:hover { background: #78909c; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        .stat-card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); text-align: center; border-top: 4px solid #b0bec5; position: relative; }
+        .stat-card.win { border-top-color: #2e7d32; background: #e8f5e9; }
+        .stat-card.lose { border-top-color: #c62828; background: #ffebee; }
+        .stat-val { font-size: 20px; font-weight: bold; margin-top: 5px; white-space: nowrap; }
+        .win .stat-val { color: #2e7d32; }
+        .lose .stat-val { color: #c62828; }
+        
+        .table-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+        th { background: #f4f6f7; padding: 10px; font-weight: 600; color: #37474f; border-bottom: 2px solid #cfd8dc; }
+        td { padding: 10px; border-bottom: 1px solid #eceff1; white-space: nowrap; }
+        tr:hover { background: #f9fbe7; }
+        .badge-term { background: #e8f5e9; color: #2e7d32; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .badge-pay { background: #e3f2fd; color: #1565c0; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: white; margin: 15% auto; padding: 20px; border-radius: 8px; width: 80%; max-width: 450px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); position: relative; }
+        .close-btn { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; line-height: 20px; }
+        .close-btn:hover { color: black; }
+        #modalTitle { margin-top: 0; color: #00897b; font-size: 18px; }
+        #modalText { line-height: 1.5; color: #455a64; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<div class="wrapper">
+    <div class="panel">
+        <h2>⚙️ Настройки кредита</h2>
+        <div class="form-group">
+            <label>Текущий остаток долга (руб.): <button class="help-btn" onclick="showHelp('balance')">?</button></label>
+            <input type="text" id="balance" value="143 145,99" oninput="formatInput(this); runSimulation()">
+        </div>
+        <div class="form-group">
+            <label>Процентная ставка (% годовых): <button class="help-btn" onclick="showHelp('rate')">?</button></label>
+            <!-- Для ставки маска пробелов не нужна, только замена точки на запятую при вводе -->
+            <input type="text" id="rate" value="18,763" oninput="this.value = this.value.replace('.', ','); runSimulation()">
+        </div>
+        <div class="form-group">
+            <label>Осталось месяцев по графику: <button class="help-btn" onclick="showHelp('months')">?</button></label>
+            <input type="text" id="months" value="21" oninput="this.value = this.value.replace(/[^0-9]/g, ''); runSimulation()">
+        </div>
+        
+        <h3 style="margin-top: 20px;">💡 Стратегия досрочки</h3>
+        <div class="form-group">
+            <label>Регулярная досрочка (руб./мес): <button class="help-btn" onclick="showHelp('extra')">?</button></label>
+            <input type="text" id="extra" value="10 000" oninput="formatInput(this); runSimulation()">
+        </div>
+        <div class="form-group">
+            <label>Тип сокращения: <button class="help-btn" onclick="showHelp('strategy')">?</button></label>
+            <select id="strategy" onchange="runSimulation()">
+                <option value="term">Сокращать СРОК кредита</option>
+                <option value="payment">Сокращать РАЗМЕР платежа</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="main-content">
+        <div class="stats-grid">
+            <div class="stat-card lose">
+                <label>Базовый платеж банка <button class="help-btn" onclick="showHelp('cardBase')">?</button></label>
+                <div class="stat-val" id="paymentVal">0 руб.</div>
+            </div>
+            <div class="stat-card win">
+                <label>Вы сэкономите на процентах <button class="help-btn" onclick="showHelp('cardSaveMoney')">?</button></label>
+                <div class="stat-val" id="saveMoneyVal">0 руб.</div>
+            </div>
+            <div class="stat-card win">
+                <label>Срок сократится на <button class="help-btn" onclick="showHelp('cardSaveTime')">?</button></label>
+                <div class="stat-val" id="saveTimeVal">0 мес.</div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <h3>📅 Помесячный симулятор (Заглянуть вперед)</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Месяц</th>
+                        <th>Остаток долга <button class="help-btn" onclick="showHelp('colDebt')">?</button></th>
+                        <th>Платеж банка <button class="help-btn" onclick="showHelp('colPay')">?</button></th>
+                        <th>Из них Проценты <button class="help-btn" onclick="showHelp('colInterests')">?</button></th>
+                        <th>В тело кредита <button class="help-btn" onclick="showHelp('colBody')">?</button></th>
+                        <th>Ваша Досрочка <button class="help-btn" onclick="showHelp('colExtra')">?</button></th>
+                    </tr>
+                </thead>
+                <tbody id="scheduleBody">
+                    <!-- Заполняется через JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="helpModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h4 id="modalTitle">Название подсказки</h4>
+        <p id="modalText">Текст подсказки...</p>
+    </div>
+</div>
+
+<script>
+const tips = {
+    balance: { title: "Текущий остаток долга", text: "Сумма, которую вы реально должны банку ПРЯМО СЕЙЧАС (без будущих процентов). Банк начисляет проценты каждый день на этот остаток." },
+    rate: { title: "Процентная ставка", text: "Годовой процент по договору. Банк делит его на 12 месяцев для расчета текущего платежа." },
+    months: { title: "Оставшийся срок кредита", text: "Сколько месяцев осталось платить по официальному графику банка без досрочных погашений." },
+    extra: { title: "Регулярная досрочка", text: "Сумма, которую вы вносите СВЕРХ обязательного платежа. Идет на уничтожение чистого долга." },
+    strategy: { title: "Стратегия погашения", text: "<b>Сокращать СРОК:</b> Вы платите прежнюю сумму, но кредит закроется раньше. Самый выгодный путь.<br><br><b>Сокращать ПЛАТЕЖ:</b> С каждым месяцем обязательный платеж уменьшается. Переплата падает медленнее, но падает нагрузка." },
+    cardBase: { title: "Обязательный платеж", text: "Сумма, которую вы обязаны отдавать банку каждый месяц по графику." },
+    cardSaveMoney: { title: "Чистая экономия", text: "Ваша главная ВЫГОДА в рублях. Деньги, которые вы сохраните в своем кошельке и НЕ отдадите банку." },
+    cardSaveTime: { title: "Сэкономленное время", text: "На сколько месяцев раньше вы полностью закроете кредит." },
+    colDebt: { title: "Остаток долга на начало месяца", text: "Сумма, от которой банк рассчитывает проценты в текущем месяце." },
+    colPay: { title: "Обязательный платеж банка", text: "Ваш стандартный платеж, состоящий из процентов и части долга." },
+    colInterests: { title: "Из них Проценты (Выгода банка)", text: "«Чистый доход» банка за воздух. Наша цель — уменьшить эти цифры как можно быстрее." },
+    colBody: { title: "В тело кредита", text: "Часть платежа, которая реально уменьшает ваш долг." },
+    colExtra: { title: "Ваша Досрочка", text: "Дополнительные деньги, которые мгновенно сжигают долг и снижают проценты на следующий месяц." }
+};
+
+// Красивое форматирование чисел прямо в полях ввода при написании
+function formatInput(input) {
+    let cursorPosition = input.selectionStart;
+    let originalLength = input.value.length;
+    
+    // Очищаем всё, кроме цифр и одной запятой/точки
+    let value = input.value.replace('.', ',').replace(/[^0-9,]/g, '');
+    
+    // Разделяем целую часть и копейки
+    let parts = value.split(',');
+    // Форматируем целую часть пробелами
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    
+    // Если копеек ввели больше двух, обрезаем
+    // Если копеек ввели больше двух, обрезаем
+    if (parts[1]) parts[1] = parts[1].substring(0, 2);
+    
+    input.value = parts.join(',');
+    
+    // Корректируем положение курсора, чтобы он не прыгал при вводе пробелов
+    let newLength = input.value.length;
+    cursorPosition = cursorPosition + (newLength - originalLength);
+    input.setSelectionRange(cursorPosition, cursorPosition);
+}
+
+function parseRuFloat(id) {
+    let val = document.getElementById(id).value;
+    val = val.replace(/\s/g, '').replace(',', '.');
+    return parseFloat(val) || 0;
+}
+
+function formatRu(value) {
+    return Math.round(value).toLocaleString('ru-RU') + " ₽";
+}
+
+function showHelp(id) {
+    if (tips[id]) {
+        document.getElementById('modalTitle').innerHTML = tips[id].title;
+        document.getElementById('modalText').innerHTML = tips[id].text;
+        document.getElementById('helpModal').style.display = 'block';
+    }
+}
+
+function closeModal() {
+    document.getElementById('helpModal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    let modal = document.getElementById('helpModal');
+    if (event.target == modal) { modal.style.display = "none"; }
+}
+
+function runSimulation() {
+    let initBalance = parseRuFloat('balance');
+    const annualRate = parseRuFloat('rate');
+    const totalMonths = parseInt(document.getElementById('months').value.replace(/\s/g, '')) || 1;
+    let extraPayment = parseRuFloat('extra');
+    const strategy = document.getElementById('strategy').value;
+
+    const monthlyRate = annualRate / 12 / 100;
+
+    let basePayment = 0;
+    if (monthlyRate > 0 && totalMonths > 0) {
+        basePayment = initBalance * (monthlyRate * Math.pow(1 + monthlyRate, totalMonths)) / (Math.pow(1 + monthlyRate, totalMonths) - 1);
+    } else if (totalMonths > 0) {
+        basePayment = initBalance / totalMonths;
+    }
+    document.getElementById('paymentVal').innerText = formatRu(basePayment);
+
+    let tempBalance = initBalance;
+    let totalBaseInterests = 0;
+    for (let i = 0; i < totalMonths; i++) {
+        let interest = tempBalance * monthlyRate;
+        totalBaseInterests += interest;
+        tempBalance -= (basePayment - interest);
+    }
+
+    let currentBalance = initBalance;
+    let currentPayment = basePayment;
+    let totalSimInterests = 0;
+    let monthCounter = 0;
+    
+    let html = "";
+
+    while (currentBalance > 0.01 && monthCounter < 360) {
+        monthCounter++;
+        let interestForMonth = currentBalance * monthlyRate;
+        totalSimInterests += interestForMonth;
+
+        let principalForMonth = currentPayment - interestForMonth;
+        
+        if ((principalForMonth + interestForMonth) > currentBalance) {
+            principalForMonth = currentBalance;
+            extraPayment = 0;
+        }
+
+        let actualExtra = extraPayment;
+        if ((currentBalance - principalForMonth) < actualExtra) {
+            actualExtra = Math.max(0, currentBalance - principalForMonth);
+        }
+
+        html += `<tr>
+            <td><b>№ ${monthCounter}</b></td>
+            <td>${formatRu(currentBalance)}</td>
+            <td>${formatRu(principalForMonth + interestForMonth)}</td>
+            <td style="color:#e74c3c; font-weight:bold;">${formatRu(interestForMonth)}</td>
+            <td style="color:#27ae60;">${formatRu(principalForMonth)}</td>
+            <td><span class="${strategy === 'term' ? 'badge-term' : 'badge-pay'}">+${formatRu(actualExtra)}</span></td>
+        </tr>`;
+
+        currentBalance -= (principalForMonth + actualExtra);
+
+        if (strategy === 'payment' && currentBalance > 0) {
+            let remainingMonths = totalMonths - monthCounter;
+            if (remainingMonths > 0) {
+                currentPayment = currentBalance * (monthlyRate * Math.pow(1 + monthlyRate, remainingMonths)) / (Math.pow(1 + monthlyRate, remainingMonths) - 1);
+            }
+        }
+    }
+
+    document.getElementById('scheduleBody').innerHTML = html;
+
+    let savedMoney = totalBaseInterests - totalSimInterests;
+    let savedTime = totalMonths - monthCounter;
+
+    document.getElementById('saveMoneyVal').innerText = formatRu(savedMoney > 0 ? savedMoney : 0);
+    document.getElementById('saveTimeVal').innerText = (savedTime > 0 ? savedTime : 0) + " мес.";
+}
+
+window.onload = runSimulation;
+</script>
+
+</body>
+</html>
